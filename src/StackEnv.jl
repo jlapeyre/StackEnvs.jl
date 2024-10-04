@@ -16,8 +16,14 @@ function resetenvs!()
     copyto!(Base.DEFAULT_LOAD_PATH, LOAD_PATH)
 end
 
+# This may not be very useful.
 """
-   myusing(env::AbstractString, pkg::Symbol)
+   using_from(env::AbstractString, pkg::Symbol)
+
+Do `using` on package `pkg` from environment `env`.
+
+This is not really `using`, but rather calls `Base.require`
+and then makes a `const` binding to the required module.
 """
 function using_from(env::AbstractString, pkg::Symbol)
     pushenv!(env)
@@ -30,15 +36,24 @@ function using_from(env::AbstractString, pkg::Symbol)
     nothing
 end
 
-const default_envs = ["@", "@v#.#", "@stdlib"]
+"""
+    _user_depot()
 
-function user_depot()
+Return path to the main user depot. On unix, this is normally `~/.julia`.
+"""
+function _user_depot()
     first(Base.DEPOT_PATH)
 end
 
-function isdefault(env::AbstractString)
+"""
+    _isdefault(env::AbstractString)
+
+Return `true` if `env` is a default environment, i.e.
+one that was not added to `LOAD_PATH` by the user.
+"""
+function _isdefault(env::AbstractString)
     startswith(env, "/tmp/") && return true
-    in(env, default_envs)
+    in(env, Base.DEFAULT_LOAD_PATH)
 end
 
 """
@@ -51,10 +66,18 @@ function envs(all=false)
     if all
         return copy(LOAD_PATH)
     end
-    [env for env in LOAD_PATH if ! isdefault(env)]
+    [env for env in LOAD_PATH if ! _isdefault(env)]
 end
 
-function isdefault_shared_env(env::AbstractString)
+
+"""
+    _isdefault_shared_env(env::AbstractString)
+
+Return `true` if `env` is a default, or startup, shared enviroment.
+
+For example, this function returns `true` for `"v1.10"` and `false` for `"mysharedenv"`.
+"""
+function _isdefault_shared_env(env::AbstractString)
     startswith(env, r"v1\.|v0\.")
 end
 
@@ -66,22 +89,21 @@ the default shared enviroments. These need not be active or
 in the list of stacked enviroments `LOAD_PATH`.
 """
 function sharedenvs()
-    envs = readdir(joinpath(user_depot(), "environments"))
-    ["@" * env for env in envs if !isdefault_shared_env(env)]
+    envs = readdir(joinpath(_user_depot(), "environments"))
+    ["@" * env for env in envs if !_isdefault_shared_env(env)]
 end
 
 """
     pushenv!(env::AbstractString)
 
 Add `env` to `LOAD_PATH`, the list of stacked environments and return `true`.
-If `env` is already in `LOAD_PATH`, do nothing and return `false.
+If `env` is already in `LOAD_PATH`, do nothing and return `false`.
 """
 function pushenv!(env::AbstractString)
     in(env, LOAD_PATH) && return false
     push!(LOAD_PATH, env)
     true
 end
-
 
 """
     rmenv!(env::AbstractString)
