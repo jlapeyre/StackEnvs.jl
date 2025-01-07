@@ -27,7 +27,7 @@ jobs:
           - 'pre'
         os:
           - ubuntu-latest
-          - mac-os-latest
+#          - mac-os-latest
           - windows-latest
         arch:
           - x64
