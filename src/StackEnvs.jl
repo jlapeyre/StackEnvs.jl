@@ -94,17 +94,19 @@ StackEnv(env_name::AbstractString) = StackEnv(env_name, Symbol[])
 
 # Make sure `name` starts with "@".
 # Prepend an "@" only if it is missing.
-function _at_name(name::AbstractString)::String
-    startswith(name, "@") && return string(name)
+function _at_name(name::StrOrSym)::String
+    sname = string(name)
+    startswith(sname, "@") && return sname
     return string("@", name)
 end
 
 # Make sure `name` does *not* start with "@"
 # Remove "@" if present.
-function _no_at_name(name::AbstractString)::String
-    isempty(name) && return ""
-    startswith(name, "@") && return string(@view name[2:end])
-    return string(name)
+function _no_at_name(name::StrOrSym)::String
+    sname = string(name)
+    isempty(sname) && return ""
+    startswith(sname, "@") && return string(@view sname[2:end])
+    return string(sname)
 end
 
 _at_name(env::StackEnv)::String = _at_name(env.name)
@@ -188,7 +190,7 @@ If `env` is already in `LOAD_PATH`, do nothing and return `false`.
 function maybepushenv!(env::AbstractString)
     in(env, LOAD_PATH) && return false
     push!(LOAD_PATH, env)
-    true
+    return true
 end
 
 """
@@ -270,7 +272,7 @@ julia> env.packages
  :PythonCall
  :StatsBase
 
-julia> push!(env.packages, :CondaPkg)
+julia> push!(env, :CondaPkg)
 3-element Vector{Symbol}:
  :PythonCall
  :StatsBase
@@ -291,7 +293,7 @@ end
 function _add_packages(name::AbstractString, packages::AbstractVector{<:StrOrSym})
     current_project = Base.active_project()
     try
-        Pkg.activate(_no_at_name(name); shared=true)
+        activate_env(name)
         for pkg in packages
             Pkg.add(string(pkg))
         end
@@ -363,7 +365,11 @@ See [`StackEnv`](@ref), [`create_env`](@ref), [`ensure_in_stack`](@ref),
 [`env_exists`](@ref).
 """
 function activate_env(env::StackEnv)
-    return Pkg.activate(_no_at_name(env); shared=true)
+    return activate_env(env.name)
+end
+
+function activate_env(env_name::StrOrSym)
+    return Pkg.activate(_no_at_name(env_name); shared=true)
 end
 
 """
