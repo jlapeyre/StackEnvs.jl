@@ -13,7 +13,6 @@ function remove_from_filesystem(env_name)
     end
 end
 
-
 @testset "StackEnvs.jl" begin
     if !isdir(Pkg.envdir())
         mkdir(Pkg.envdir())
@@ -27,8 +26,8 @@ end
 
     @test !env_exists(env_name)
     @test !env_exists(env)
-    @test !is_in_stack(env_name)
-    @test !is_in_stack(env)
+    @test !env_in_stack(env_name)
+    @test !env_in_stack(env)
 
     # There are two equivalent methods for ensure_in_stack
     for func in (() -> ensure_in_stack(env), () -> ensure_in_stack(env_name, packages))
@@ -36,8 +35,8 @@ end
             env = func()
             @test env_exists(env_name)
             @test env_exists(env)
-            @test is_in_stack(env_name)
-            @test is_in_stack(env)
+            @test env_in_stack(env_name)
+            @test env_in_stack(env)
 
             proj_file_content = read_env(env)
             @test collect(keys(proj_file_content)) == ["Example"]
@@ -50,17 +49,17 @@ end
             # Should do approximately nothing. Also not error
             ensure_in_stack(env)
             @test env_exists(env)
-            @test is_in_stack(env)
+            @test env_in_stack(env)
             proj_file_content = read_env(env)
             @test sort!(collect(keys(proj_file_content))) == ["Example", "ZChop"]
 
             # We don't have a precise test. This has added packages again.
             update_env(env)
             @test env_exists(env)
-            @test is_in_stack(env)
+            @test env_in_stack(env)
             update_env(env.name, env.packages)
             @test env_exists(env)
-            @test is_in_stack(env)
+            @test env_in_stack(env)
 
         catch
             rethrow()
@@ -70,12 +69,12 @@ end
 
         @test !env_exists(env_name)
         @test !env_exists(env)
-        @test is_in_stack(env_name)
-        @test is_in_stack(env)
+        @test env_in_stack(env_name)
+        @test env_in_stack(env)
 
         delete_from_stack!(env)
-        @test !is_in_stack(env_name)
-        @test !is_in_stack(env)
+        @test !env_in_stack(env_name)
+        @test !env_in_stack(env)
 
 
         # Does not error if it is already gone

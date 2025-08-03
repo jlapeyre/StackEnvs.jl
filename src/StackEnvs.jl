@@ -1,15 +1,5 @@
-"""
-    module StackEnvs
-
-Failites for managing an environment that is not active, but in the stack.
-
-The module defines [`StackEnv`](@ref) which represents an environment meant to used
-in the enironment stack rather than as an active environment.
-
-There are some functions missing. For example, for adding and removing packages from the
-`StackEnv`. This can be done manually, but is would be a bit fiddle. These functions might
-be added later.
-"""
+# Better to *not* add a module-level docstring,
+# because `? StackEnvs` will then display the README.md instead
 module StackEnvs
 
 using Pkg: Pkg
@@ -17,72 +7,140 @@ using TOML: TOML
 
 export StackEnv,
     ensure_in_stack,
-    is_in_stack,
-    env_exists,
     create_env,
-    delete_from_stack!,
-    activate_env,
     update_env,
-    read_env
+    env_exists,
+    env_in_stack,
+    list_envs,
+    activate_env,
+    delete_from_stack!,
+    read_env,
+    add_packages!,
+    get_env_dir_path
 
 const StrOrSym = Union{AbstractString, Symbol}
 
 """
+    StackEnv(name::AbstractString, packages::AbstractVector=nothing; shared::Bool=true, read::Bool=false)
+
+Create and return a `StackEnv` object with name `name`, and list of packages `packages`.
+
+Creating a `StackEnv` object will *not* create a Julia Pkg environment on disk. See `ensure_in_stack`[@ref] for this.
+
+If `shared` is `true`, the functions for creating and manipulating the environment will assume that it is shared.
+Otherwise `name` will be assumed to be a directory path corresponding to the environment (that is, containing `Project.toml`).
+A tilde at the beginning of `name` will be expanded to the user's home directory when needed. If `name` is a single word, it will be
+assumed to be a subdirectory of the current directory.
+
+If `packages` is `nothing` and `read` is `true`, then the list of packages will be read from the existing environment specified
+by `name`. If the environment does not exist, an `ErrorException` is thrown. If `package` is a `Vector`, empty or not, and `read`
+is `true`, an `ErrorException` is thrown.
+
+If `packages` is `nothing` and `read` is `false`, then an empty list `Symbol[]` will be created.
+
+# Examples
+
+```jldoctest
+julia> StackEnv("an_extra_env", [:Example]) # shared by default
+StackEnv("an_extra_env", [:Example], true)
+
+julia> StackEnv("an_extra_env", [:Example]; shared=false) # not shared
+StackEnv("an_extra_env", [:Example], false)
+
+julia> StackEnv("existing_env", shared=true, read=true)
+StackEnv("existing_env", [:Example, :OtherPackage], true)
+```
+
+Use `?? StackEnv` for extended help.
+
+# Extended help
+
     struct StackEnv
 
-Data for defining a shared environment to be used in the environment stack.
+Data for defining a shared/not-shared environment to be used in the environment stack.
 
-When working with a particular package, you might frequently use certain other packages that
-are not in the dependencies of the particular one. `StackEnv` is meant to help manage these
-other packages. You can do this by hand as well. But it's sometimes not easy to remember
-what you want to do and exactly how to do it.
+```julia
+StackEnv("envname", [:Example, :OtherPackage])
+StackEnv("envname2", [:OtherPackageA, :OtherPackageB]; shared=false)
+```
 
-`StackEnv` helps you create a shared environment and make sure it is in your stack of environments
-so that its packages are visibile when it is not the active environment. You are *not* meant
+Julia searches for a package in a list of "environments", loading the package from the
+first environment where it is found. An environment is a folder with a file `Project.toml`
+listing packages. This list is called the stack and is stored in the global `Vector` called `LOAD_PATH`.
+
+When developing a package, you might use certain other packages that are not in its
+dependencies. `StackEnv` is meant to help manage these other packages. You can do this by
+hand as well.  But you'll have to remember exactly what you want exactly how to do it.
+
+`StackEnv` helps you create a shared or not-shared environment and make sure it is in your stack of environments
+so that its packages are visible when it is not the active environment. You are *not* meant
 to do work with the environment in `StackEnv` activated.
 
-The most important function for creating an `StackEnv` and making it visible is [`ensure_in_stack`](@ref).
+The most important function for creating a `StackEnv` and making it visible is [`ensure_in_stack`](@ref).
+
+`StackEnv` also includes convenience functions such as `list_envs`.
 
 # Fields
 - `name::String`: the name of the extra environment
 - `packages::Vector{Symbol}`: A list of packages to use to initialize the environment.
+- `shared::Bool`: True if the environment is shared.
 
-See [`update_env`](@ref) [`create_env`](@ref), [`ensure_in_stack`](@ref), [`env_exists`](@ref),
-[`activate_env`](@ref), [`is_in_stack`](@ref), [`delete_from_stack!`](@ref).
+# Functions
 
-# Examples
-```jldoctest
-julia> StackEnv("an_extra_env", [:Example])
-StackEnv("an_extra_env", [:Example])
+See doc strings for further information.
+* [`ensure_in_stack`](@ref) - Add an env to the stack if not there, creating it and adding packages if needed.
+* [`create_env`](@ref) - Create an environment with a given name and list of packages.
+* [`update_env`](@ref) - Add all packages in `env.packages` to the environment `env.name`.
+* [`env_exists`](@ref) - Return `true` if the environment in `env` already exists (may or may not be in the stack).
+* [`env_in_stack`](@ref) - Return `true` if a given environment is in the environment stack.
+* [`list_envs`](@ref) - List all shared environments known to Julia, or only those matching a string/regex.
+* [`activate_env`](@ref) - Activate environment `env.name` (not normally needed).
+* [`delete_from_stack!`](@ref) - Delete a given environment if, and wherever it occurs, in the stack.
+* [`read_env`](@ref) - Return list of package names in the `Project.toml` in given environment
+* [`get_env_dir_path`](@ref) - Return absolute path to the directory of the environment
 
-julia> StackEnv("@an_extra_env", [:Example])
-StackEnv("an_extra_env", [:Example])
-```
+# Shared and not-shared environments
+
+Julia distinguishes between shared and not-shared environments as follows.
+`Pkg.activate("myenv")` activates an environment in a subfolder `./myenv/` of the current folder.
+`Pkg.activate("@myenv")` activates a *shared* environment, typically in `~/.julia/environments/myenv/`.
+Note that the `@` character is never in the folder name. It just tells `Pkg` which directory to look in.
+
+`StackEnv` only supports both shared and not-shared environments. The `struct StackEnv` includes
+a boolean field `shared` whose value determines whether the environment is shared. The default value
+for this field is `true`.
+
+However, we treat names with and without the initial `'@'` the same.
+The character `'@'` will be prepended to or removed as needed depending on the context and whether the enviroment is shared.
+Rather, we determine whether an enviroment is shared by reading the field `shared` in the struct `StackEnv`,
+In addtion many functions in `StackEnvs` take a keyword argument `shared`.
 """
 struct StackEnv
     name::String
     packages::Vector{Symbol}
+    shared::Bool
 
-    function StackEnv(name::AbstractString, packages::AbstractVector)
-        return new(_no_at_name(name), [Symbol(p) for p in packages])
+    function StackEnv(name::AbstractString, packages::Union{AbstractVector,Nothing}=nothing; shared::Bool=true, read::Bool=false)
+        if read && !isnothing(packages)
+            throw(ErrorException(lazy"If a list of packages is supplied, `read` must be false."))
+        end
+        name = _no_at_name(name)
+        if shared && (isabspath(expanduser(name)) || length(splitpath(name)) != 1)
+            throw(ArgumentError(lazy"A shared environment name must be a single word. Got \"$name\""))
+        end
+        if isnothing(packages)
+            if read
+                if !env_exists(name; shared=shared)
+                    throw(ErrorException(lazy"Argument `read` is `true`, but unable to find environment \"$name\" for reading."))
+                end
+                packages = sort!(collect(keys(read_env(name; shared=shared))))
+            else
+                packages = Symbol[]
+            end
+        end
+        return new(name, [Symbol(p) for p in packages], shared)
     end
 end
-
-"""
-    StackEnv(env_name::AbstractString)
-
-Initialize an `StackEnv` with an empty list of packages.
-
-# Examples
-```jldoctest
-julia> StackEnv("an_extra_env")
-StackEnv("an_extra_env", Symbol[])
-
-julia> StackEnv("@an_extra_env")
-StackEnv("an_extra_env", Symbol[])
-```
-"""
-StackEnv(env_name::AbstractString) = StackEnv(env_name, Symbol[])
 
 # Make sure `name` starts with "@".
 # Prepend an "@" only if it is missing.
@@ -104,14 +162,14 @@ end
 _at_name(env::StackEnv)::String = _at_name(env.name)
 _no_at_name(env::StackEnv)::String = _no_at_name(env.name)
 
-function Base.push!(env::StackEnv, package::StrOrSym)
-    push!(env.packages, Symbol(package))
+function add_packages!(env::StackEnv, packages::StrOrSym...)
+    push!(env.packages, map(Symbol, packages))
 end
 
 """
-    ensure_in_stack(env_name::AbstractString, env_packages::AbstractVector)::StackEnv
+    ensure_in_stack(env_name::AbstractString, env_packages::AbstractVector; shared=true)::StackEnv
 
-Create `env = StackEnv(env_name, env_packages)`, run `ensure_in_stack(env)` and return `env`.
+Create `env = StackEnv(env_name, env_packages; shared=shared)`, run `ensure_in_stack(env)` and return `env`.
 
 Elements of `env_packages` should be `AbstractString`s or `Symbol`s.
 
@@ -119,11 +177,11 @@ See [`StackEnv`](@ref).
 
 # Examples
 ```julia-repl
-julia> ensure_in_stack("my_extra_env", [:PackageA, :PackageB]);
+julia> ensure_in_stack("my_extra_env", [:PackageA, :PackageB]; shared=false); # or shared = true
 ```
 """
-function ensure_in_stack(env_name::AbstractString, env_packages::AbstractVector{<:StrOrSym})
-    env = StackEnv(env_name, [Symbol(p) for p in env_packages])
+function ensure_in_stack(env_name::AbstractString, env_packages::AbstractVector{<:StrOrSym}; shared=true)
+    env = StackEnv(env_name, [Symbol(p) for p in env_packages]; shared=shared)
     ensure_in_stack(env)
     return env
 end
@@ -131,12 +189,13 @@ end
 """
     ensure_in_stack(env::StackEnv)::StackEnv
 
-Ensure that a shared environment `env.name` with `env.packages` is in your stack.
+Ensure that an environment `env.name` with `env.packages` is in your stack.
 
 Recall that the environment stack is `Base.LOAD_PATH`.
 
-If `env.name` does not name a shared environment, create it and add `env.packages`.
+If `env.name` does not name an environment, create it and add `env.packages`.
 Furthermore, if `env.name` is not in the stack, add it to the stack.
+The location of the environment and prepending/removing `'@'` depends on `env.shared`.
 
 After this runs, the packages `env.packages` should be available in whatever project
 is active.
@@ -155,9 +214,9 @@ See [`StackEnv`](@ref).
 """
 function ensure_in_stack(env::StackEnv)::StackEnv
     env_exists(env) || create_env(env)
-    atenv = _at_name(env) # This must already be the case!
+#    atenv = _at_name(env) # This must already be the case!
     add_missing(env)
-    maybepushenv!(atenv)
+    maybepushenv!(env)
     return env
 end
 
@@ -170,62 +229,127 @@ function add_missing(env::StackEnv)
         spack in existing_packages || push!(missing_packs, spack)
     end
     isempty(missing_packs) && return
-    _add_packages(env.name, missing_packs)
+    _add_packages(env.name, missing_packs; shared=env.shared)
+end
+
+function maybepushenv!(env::StackEnv)
+    maybepushenv!(env.name; shared=env.shared)
 end
 
 """
-    maybepushenv!(env::AbstractString)
+    maybepushenv!(env_name::AbstractString; shared=true)
 
 Add `env` to `LOAD_PATH`, the list of stacked environments and return `true`.
 If `env` is already in `LOAD_PATH`, do nothing and return `false`.
+
+The character `'@'` will be prepended to or removed as needed depending the keyword argument `shared`.
 """
-function maybepushenv!(env::AbstractString)
-    in(env, LOAD_PATH) && return false
-    push!(LOAD_PATH, env)
+function maybepushenv!(env_name::AbstractString; shared=true)
+    env_name = shared ? _at_name(env_name) : _no_at_name(env_name)
+    in(env_name, LOAD_PATH) && return false
+    push!(LOAD_PATH, env_name)
     return true
 end
 
 """
-    is_in_stack(env_name::AbstractString)::Bool
+    env_in_stack(env_name::AbstractString; shared=true)::Bool
 
-Return `true` if the shared environment `env_name` is in the environment stack.
+Return `true` if the environment `env_name` is in the environment stack.
 
-If `env_name` does not start with `'@'`, it is prepended. The stack is `Base.LOAD_PATH`.
+The character `'@'` will be prepended to or removed as needed depending the keyword argument `shared`.
+The stack is `Base.LOAD_PATH`.
 """
-function is_in_stack(env_name::AbstractString)::Bool
-    return _at_name(env_name) in Base.LOAD_PATH
+function env_in_stack(env_name::AbstractString; shared=true)::Bool
+    name = shared ? _at_name(env_name) : _no_at_name(env_name)
+    return name in Base.LOAD_PATH
 end
 
 """
-    is_in_stack(env::StackEnv)::Bool
+    env_in_stack(env::StackEnv)::Bool
 
-Return `true` if the shared environment `env.name` is in the environment stack.
+Return `true` if the environment `env.name` is in the environment stack.
 
 See [`StackEnv`](@ref).
 """
-is_in_stack(env::StackEnv)::Bool = is_in_stack(env.name)
+env_in_stack(env::StackEnv)::Bool = env_in_stack(env.name; shared=env.shared)
 
 """
     env_exists(env::StackEnv)::Bool
 
-Return `true` if the shared environment in `env` already exists.
+Return `true` if the environment in `env` already exists.
+
+The character `'@'` will be prepended to or removed from `env_name` according to `env.shared`.
 
 See [`StackEnv`](@ref).
 """
-env_exists(env::StackEnv)::Bool = env_exists(env.name)
+env_exists(env::StackEnv)::Bool = env_exists(env.name; shared=env.shared)
+
+# This is not needed
+"""
+    get_env_dir_path(env::StackEnv)
+"""
+function get_env_dir_path(env::StackEnv)
+    get_env_dir_path(env.name, env.shared)
+end
 
 """
-    env_exists(env_name::AbstractString)::Bool
+    get_env_dir_path(env_name::AbstractString, shared::Bool)
 
-Return `true` if the shared environment `env_name` already exists.
+Return the absolute path to the directory of the environment `env_name`.
 
-`env_name` may begin with "@" or not.
+If `shared` is `true`, a subdirectory of the directory of shared environments is returned.
+
+If `shared` is false, the absolute path determined by `env_name`, with tilde expaned to
+the user's home directory (on linux and macos) is returned.
+"""
+function get_env_dir_path(env_name::AbstractString, shared::Bool)
+    if shared
+        return joinpath(Pkg.envdir(), env_name)
+    end
+    return abspath(expanduser(env_name))
+end
+
+"""
+    env_exists(env_name::AbstractString; shared=true)::Bool
+
+Return `true` if the environment `env_name` already exists.
+
+The character `'@'` will be prepended to or removed from `env_name` according to `shared`.
 
 This environment might be activated via `Pkg.activate(env_name)`
 If done from the `pkg` repl, the name must start with `'@'`.
 """
-function env_exists(env_name::AbstractString)::Bool
-    return _no_at_name(env_name) in readdir(Pkg.envdir())
+function env_exists(env_name::AbstractString; shared=true)::Bool
+    name = _no_at_name(env_name)
+    shared && return name in list_envs(;all=true)
+    isdir(get_env_dir_path(name, shared))
+end
+
+# Accept only strings in `list` that match `regex`.
+# If `invert` is `true`, accept only those that do not match.
+function _filter_strings(regex, list; invert=false)
+    f = invert ? (!) : identity
+    return filter(s -> f(occursin(regex, s)), list)
+end
+
+"""
+    list_envs(search=nothing; all=false)::Vector
+
+Return a list of all existing shared environment names known to Julia.
+
+If `search` is a string or regex, then return only matching names.
+
+If `all` is `true`, then include default environments, for example,
+"v1.0", v"1.12", etc. When you start `julia`, one of these environments
+is created and activated by default.
+
+For exact matching, see [`env_exists`](@ref).
+"""
+function list_envs(search=nothing; all=false)
+    filenames = readdir(Pkg.envdir())
+    isnothing(search) || (filenames = _filter_strings(search, filenames))
+    all && return filenames
+    return _filter_strings(r"^v\d+\.\d+", filenames; invert=true)
 end
 
 """
@@ -233,7 +357,12 @@ end
 
 Create a shared environment named `env.name` with packages `env.packages`.
 
-If the shared environment `env.name` already exists, an error is thrown.
+This will create a folder in the appropriate location and write `Project.tom`
+and `Manifest.toml` files.
+
+If the environment `env.name` already exists, an error is thrown.
+
+The character `'@'` will be prepended to or removed from `env_name` according to `env.shared`.
 
 See [`StackEnv`](@ref).
 """
@@ -248,7 +377,7 @@ end
 
 Add all packages in `env.packages` to the shared environment `env.name`.
 
-If the shared environment `env.name` does not exist, it is created.
+If the environment `env.name` does not exist, it is created.
 
 This is the same as [`create_env`](@ref) except no check is made that the environment
 does not already exist. Any packages that have already been added to the environment
@@ -264,7 +393,7 @@ julia> env.packages
  :PythonCall
  :StatsBase
 
-julia> push!(env, :CondaPkg)
+julia> add_packages!(env, :CondaPkg)
 3-element Vector{Symbol}:
  :PythonCall
  :StatsBase
@@ -278,14 +407,17 @@ julia> update_env(env)
 ```
 """
 function update_env(env::StackEnv)
-    _add_packages(env.name, env.packages)
+    _add_packages(env.name, env.packages; shared=env.shared)
 end
 
 # Add `packages` to shared environment `name`.
-function _add_packages(name::AbstractString, packages::AbstractVector{<:StrOrSym})
+function _add_packages(name::AbstractString, packages::AbstractVector{<:StrOrSym}; shared=true)
     current_project = Base.active_project()
     try
-        activate_env(name)
+        if !shared
+            name = get_env_dir_path(name, shared)
+        end
+        activate_env(name; shared=shared)
         for pkg in packages
             Pkg.add(string(pkg))
         end
@@ -297,23 +429,28 @@ function _add_packages(name::AbstractString, packages::AbstractVector{<:StrOrSym
 end
 
 """
-    update_env(env_name::AbstractString, env_packages::AbstractVector)::StackEnv
+    update_env(env_name::AbstractString, env_packages::AbstractVector; shared=true)::StackEnv
 
-Create `env = StackEnv(env_name, env_packages)` and create or update the environment `env_name`.
+Create `env = StackEnv(env_name, env_packages; shared=shared)` and create or update the environment `env_name`.
 
-The shared environment `env_name` will be created if it does not exist.
-Possible existing packages in the the environment are not removed. If
-packages in `env_packages` are already in the environment, they are added again.
+The environment `env_name` will be created if it does not exist. This may included creating
+a directory and populating it with `.toml` files. Possible existing packages
+in the the environment are not removed. If packages in `env_packages` are already in the
+environment, they are added again.
+
+The environment will be shared or not according the keyword argument `shared`.
 
 Elements of `env_packages` should be `AbstractString`s or `Symbol`s.
 
-`update_env` is the same as `create_env(env_name, env_packages)` except that the
-latter will throw an error if the environment already exists.
+`update_env` is the same as `create_env` except that the latter will throw an error if the environment already exists.
+
+The character `'@'` will be prepended to or removed from `env_name` according to the keyword argument `shared`.
 
 See [`StackEnv`](@ref).
 """
-function update_env(env_name::AbstractString, env_packages::AbstractVector)
-    env = StackEnv(env_name, [Symbol(p) for p in env_packages])
+function update_env(env_name::AbstractString, env_packages::AbstractVector; shared=true)
+    name = _no_at_name(env_name)
+    env = StackEnv(name, [Symbol(p) for p in env_packages]; shared=shared)
     update_env(env)
     return env
 end
@@ -326,20 +463,23 @@ Delete environment `env.name` if and wherever it occurs in the stack `Base.LOAD_
 See [`StackEnv`](@ref).
 """
 function delete_from_stack!(env::StackEnv)
-    return delete_from_stack!(env.name)
+    name = env.shared ? _at_name(env.name) : _no_at_name(env.name)
+    return delete_from_stack!(name; shared=env.shared)
 end
 
 """
-    delete_from_stack!(env_name::Union{AbstractString, Symbol})
+    delete_from_stack!(env_name::Union{AbstractString, Symbol}; shared=true)
 
 Delete environment `env_name` if and wherever it occurs in the stack `Base.LOAD_PATH`.
 
+The character `'@'` will be prepended to or removed from `env_name` according to the keyword argument `shared`.
+
 See [`StackEnv`](@ref).
 """
-function delete_from_stack!(env_name::StrOrSym)
+function delete_from_stack!(env_name::StrOrSym; shared=true)
+    name = shared ? _at_name(env_name) : _no_at_name(env_name)
     stack = Base.LOAD_PATH
-    atname = _at_name(env_name)
-    inds = findall(==(atname), stack)
+    inds = findall(==(name), stack)
     if !isnothing(inds) && !isempty(inds)
         return deleteat!(stack, inds...)
     end
@@ -347,36 +487,54 @@ end
 
 """
     activate_env(env::StackEnv)
+    activate_env(env_name::StrOrSym; shared=true)
 
-Activate the shared environment `env.name`.
+Activate the environment `env.name`, or `env_name`.
 
 You might want to do this to add or remove packages from the environment.
 But it is not necessary to activate it to use it.
 
+The character `'@'` will be prepended to or removed from `env_name` according to the keyword argument `shared`.
+
 See [`StackEnv`](@ref), [`create_env`](@ref), [`ensure_in_stack`](@ref),
 [`env_exists`](@ref).
 """
-function activate_env(env::StackEnv)
-    return activate_env(env.name)
+function activate_env(env::StackEnv; shared=true)
+    return activate_env(env.name; shared=shared)
 end
 
-function activate_env(env_name::StrOrSym)
-    return Pkg.activate(_no_at_name(env_name); shared=true)
+function activate_env(env_name::StrOrSym; shared=true)
+    return Pkg.activate(_no_at_name(env_name); shared=shared)
 end
 
 """
-    read_env(env_name::StrOrSym)
+    read_env(env_name::StrOrSym; all=false, shared=true)::Dict
 
-Read the `Project.toml` in environment `env_name`.
+Return list of package names in the `Project.toml` in environment `env_name`.
 
 A `Dict` mapping package names to uuids is returned.
+
+By default, only the section `"deps"` is returned.
+If `all` is true the entire `Project.toml` is returned.
 """
-function read_env(env_name::StrOrSym)
-    env_name = string(env_name)
-    proj_file = joinpath(Pkg.envdir(), env_name, "Project.toml")
-    return TOML.parsefile(proj_file)["deps"]
+function read_env(env_name::StrOrSym; all=false, shared=true)
+    env_name = _no_at_name(string(env_name))
+    proj_file = joinpath(get_env_dir_path(env_name, shared), "Project.toml")
+    parsed = TOML.parsefile(proj_file)
+    return all ? parsed : parsed["deps"]
 end
 
-read_env(env::StackEnv) = read_env(env.name)
+"""
+    read_env(env::StackEnv)
+
+Call `read_env(env.name; all=false)`.
+"""
+read_env(env::StackEnv) = read_env(env.name; shared=env.shared)
 
 end # module StackEnvs
+
+#  LocalWords:  not-shared myenv subfolder julia toml LOAD_PATH StackEnv ensure_in_stack v1
+#  LocalWords:  list_envs search_envs env create_env update_env env_exists env_in_stack Bool
+#  LocalWords:  activate_env delete_from_stack read_env jldoctest an_extra_env env_name 12
+#  LocalWords:  env_packages AbstractString julia-repl my_extra_env PackageA PackageB uuids
+#  LocalWords:  prepended repl no-op CondaPkg
