@@ -4,7 +4,7 @@
 [![Coverage](https://codecov.io/gh/jlapeyre/StackEnvs.jl/branch/main/graph/badge.svg)](https://codecov.io/gh/jlapeyre/StackEnvs.jl)
 [![Aqua QA](https://raw.githubusercontent.com/JuliaTesting/Aqua.jl/master/badge.svg)](https://github.com/JuliaTesting/Aqua.jl)
 
-`StackEnvs` provides tools for minimal management of a shared environment that is meant to be used from your "stacked environment" but never to be active itself.
+`StackEnvs` provides tools for minimal management of Julia `Pkg` environments that are meant to be used from your "stacked environment" but never to be active itself. The environments may be shared or not.
 
 This is useful if you are developing a package and want to use some other packages without polluting any environment.
 
