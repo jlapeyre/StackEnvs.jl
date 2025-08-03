@@ -167,21 +167,25 @@ function add_packages!(env::StackEnv, packages::StrOrSym...)
 end
 
 """
-    ensure_in_stack(env_name::AbstractString, env_packages::AbstractVector; shared=true)::StackEnv
+    ensure_in_stack(env_name::AbstractString, env_packages::AbstractVector=nothing; shared=true, read=false)::StackEnv
 
 Create `env = StackEnv(env_name, env_packages; shared=shared)`, run `ensure_in_stack(env)` and return `env`.
 
 Elements of `env_packages` should be `AbstractString`s or `Symbol`s.
 
-See [`StackEnv`](@ref).
+See [`StackEnv`](@ref) for documentation, including on the keyword argument `read`.
 
 # Examples
 ```julia-repl
 julia> ensure_in_stack("my_extra_env", [:PackageA, :PackageB]; shared=false); # or shared = true
 ```
 """
-function ensure_in_stack(env_name::AbstractString, env_packages::AbstractVector{<:StrOrSym}; shared=true)
-    env = StackEnv(env_name, [Symbol(p) for p in env_packages]; shared=shared)
+function ensure_in_stack(env_name::AbstractString, env_packages::Union{AbstractVector{<:StrOrSym}, Nothing}=nothing; shared=true, read=false)
+    if isnothing(env_packages)
+        env = StackEnv(env_name; shared=shared, read=read)
+    else
+        env = StackEnv(env_name, [Symbol(p) for p in env_packages]; shared=shared, read=read)
+    end
     ensure_in_stack(env)
     return env
 end
