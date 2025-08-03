@@ -96,7 +96,7 @@ is `true`, an `ErrorException` is thrown.
 
 If `packages` is `nothing` and `read` is `false`, then an empty list `Symbol[]` will be created.
 
-# Examples
+### Examples
 
 ```jldoctest
 julia> StackEnv("an_extra_env", [:Example]) # shared by default
@@ -109,9 +109,7 @@ julia> StackEnv("existing_env", shared=true, read=true)
 StackEnv("existing_env", [:Example, :OtherPackage], true)
 ```
 
-Use `?? StackEnv` for extended help.
-
-# Extended help
+### Extended help
 
     struct StackEnv
 
@@ -138,12 +136,12 @@ The most important function for creating a `StackEnv` and making it visible is [
 
 `StackEnv` also includes convenience functions such as `list_envs`.
 
-# Fields
+### Fields
 - `name::String`: the name of the extra environment
 - `packages::Vector{Symbol}`: A list of packages to use to initialize the environment.
 - `shared::Bool`: True if the environment is shared.
 
-# Functions
+### Functions
 
 See doc strings for further information.
 * [`ensure_in_stack`](@ref) - Add an env to the stack if not there, creating it and adding packages if needed.
@@ -157,7 +155,7 @@ See doc strings for further information.
 * [`read_env`](@ref) - Return list of package names in the `Project.toml` in given environment
 * [`get_env_dir_path`](@ref) - Return absolute path to the directory of the environment
 
-# Shared and not-shared environments
+### Shared and not-shared environments
 
 Julia distinguishes between shared and not-shared environments as follows.
 `Pkg.activate("myenv")` activates an environment in a subfolder `./myenv/` of the current folder.
