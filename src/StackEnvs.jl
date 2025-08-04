@@ -140,6 +140,28 @@ struct StackEnv
     end
 end
 
+# Writing our own show makes display faster
+# 70% or more is from printing array ourselves.
+# It's only the first, compilation, call that is really slow.
+function Base.show(io::IO, ::MIME"text/plain", env::StackEnv)
+    print(io, "StackEnv(\"", env.name, "\", ")
+    _print_package_names(io, env.packages)
+    print(io, ", ", env.shared, ")")
+end
+
+# This especially is much faster than builtin
+function _print_package_names(io, packs)
+    print(io, "[")
+    for (i, p) in enumerate(packs)
+        i > 1 && print(io, ", ")
+        _printsym(io, p)
+    end
+    print(io, "]")
+end
+
+# Not much gain here
+_printsym(io, sym) = print(io,  ":", sym)
+
 # Make sure `name` starts with "@".
 # Prepend an "@" only if it is missing.
 function _at_name(name::StrOrSym)::String
@@ -535,6 +557,10 @@ end
 Call `read_env(env.name; shared=env.shared, all=false)`.
 """
 read_env(env::StackEnv) = read_env(env.name; shared=env.shared)
+
+# For compiling workflows for statically-compiled-like latency
+using PrecompileTools: @setup_workload, @compile_workload
+include("precompile.jl")
 
 end # module StackEnvs
 
