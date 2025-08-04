@@ -9,33 +9,33 @@
         # These don't take very long to compile anyway.
         # Especially for larger values of N, the run time is much larger than compile time.
         import Pkg
-        e1 = StackEnv("anenv", []; shared=true)
-        e2 = StackEnv("anenv", []; shared=false)
-        env_exists(e1)
-        env_in_stack(e1)
-        env_exists(e2)
-        env_in_stack(e2)
         if isdir(Pkg.envdir()) # In CI, dir does not exist
+            e1 = StackEnv("anenv", []; shared=true)
+            e2 = StackEnv("anenv", []; shared=false)
+            env_exists(e1)
+            env_in_stack(e1)
+            env_exists(e2)
+            env_in_stack(e2)
             list_envs()
             list_envs(r"^some")
-        end
-        # The following does not help. At all.
-        # I think it is the REPL itself that is laggy.
-        for env in (e1, e2)
-            io  = IOBuffer()
-            show(io, MIME"text/plain"(), e1);
-            show(stdout, MIME"text/plain"(), e1);
-            show(stdout, e1);
-            String(take!(io))
-            io  = IOBuffer()
-            show(io, e1);
-            String(take!(io))
-            s1 = string(e1)
-            s2 = string(e2)
-            print(s1)
-            print(s2)
-            print(e1)
-            print(e2)
+            # The following does not help. At all.
+            # I think it is the REPL itself that is laggy.
+            for env in (e1, e2)
+                io  = IOBuffer()
+                show(io, MIME"text/plain"(), e1);
+                show(stdout, MIME"text/plain"(), e1);
+                show(stdout, e1);
+                String(take!(io))
+                io  = IOBuffer()
+                show(io, e1);
+                String(take!(io))
+                s1 = string(e1)
+                s2 = string(e2)
+                print(s1)
+                print(s2)
+                print(e1)
+                print(e2)
+            end
         end
     end
 end
