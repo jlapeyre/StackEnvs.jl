@@ -8,14 +8,17 @@
         # they belong to your package or not (on Julia 1.8 and higher)
         # These don't take very long to compile anyway.
         # Especially for larger values of N, the run time is much larger than compile time.
+        import Pkg
         e1 = StackEnv("anenv", []; shared=true)
         e2 = StackEnv("anenv", []; shared=false)
         env_exists(e1)
         env_in_stack(e1)
         env_exists(e2)
         env_in_stack(e2)
-        list_envs()
-        list_envs(r"^some")
+        if isdir(Pkg.envdir()) # In CI, dir does not exist
+            list_envs()
+            list_envs(r"^some")
+        end
         # The following does not help. At all.
         # I think it is the REPL itself that is laggy.
         for env in (e1, e2)

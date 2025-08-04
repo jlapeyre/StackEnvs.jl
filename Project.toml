@@ -1,6 +1,6 @@
 name = "StackEnvs"
 uuid = "6dbe6948-1a74-428b-a0c7-b6033448b207"
-version = "0.5.0"
+version = "0.6.0"
 authors = ["John Lapeyre <jlapeyre@users.noreply.github.com> and contributors"]
 
 [deps]
