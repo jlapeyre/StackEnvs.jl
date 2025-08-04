@@ -12,6 +12,8 @@
         if isdir(Pkg.envdir()) # In CI, dir does not exist
             e1 = StackEnv("anenv", []; shared=true)
             e2 = StackEnv("anenv", []; shared=false)
+            e3 = StackEnv("anenv", [:a, :b, :c]; shared=false)
+            e4 = StackEnv("anenv", ["abc", "de"]; shared=false)
             env_exists(e1)
             env_in_stack(e1)
             env_exists(e2)
@@ -20,7 +22,7 @@
             list_envs(r"^some")
             # The following does not help. At all.
             # I think it is the REPL itself that is laggy.
-            for env in (e1, e2)
+            for env in (e1, e2, e3, e4)
                 io  = IOBuffer()
                 show(io, MIME"text/plain"(), e1);
                 show(stdout, MIME"text/plain"(), e1);

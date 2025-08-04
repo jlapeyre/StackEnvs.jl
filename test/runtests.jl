@@ -18,6 +18,12 @@ end
     @test StackEnv("extraenv3", :A).packages == [:A]
 end
 
+@testset "fixes" begin
+    env = StackEnv("myenv", [])
+    add_packages!(env, :ZChop, :Example)
+    @test length(env.packages) == 2
+end
+
 @testset "StackEnvs.jl" begin
     if !isdir(Pkg.envdir())
         mkdir(Pkg.envdir())
