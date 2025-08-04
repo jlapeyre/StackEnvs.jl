@@ -13,6 +13,11 @@ function remove_from_filesystem(env_name)
     end
 end
 
+@testset "errors" begin
+    @test_throws ErrorException StackEnv("extraenv3", 3)
+    @test StackEnv("extraenv3", :A).packages == [:A]
+end
+
 @testset "StackEnvs.jl" begin
     if !isdir(Pkg.envdir())
         mkdir(Pkg.envdir())

@@ -21,33 +21,33 @@ export StackEnv,
 const StrOrSym = Union{AbstractString, Symbol}
 
 """
-    StackEnv(name::AbstractString, packages::AbstractVector=nothing; shared::Bool=false, read::Bool=false)
+    StackEnv(name::AbstractString, packages=nothing; shared::Bool=false, read::Bool=false)
 
-Create and return a `StackEnv` object with name `name`, and list of packages `packages`.
+Create and return a `StackEnv` object with name `name`, and list (iterable) of package names `packages`.
+Package names may be symbols or strings.
 
 Creating a `StackEnv` object will *not* create a Julia Pkg environment on disk. See `ensure_in_stack`[@ref] for this.
 
 If `shared` is `true`, the functions for creating and manipulating the environment will assume that it is shared.
 Otherwise `name` will be assumed to be a directory path corresponding to the environment (that is, containing `Project.toml`).
-A tilde at the beginning of `name` will be expanded to the user's home directory when needed. If `name` is a single word, it will be
+Tildes in `name` will be expanded to the user's home directory when needed. If `name` is a single word, it will be
 assumed to be a subdirectory of the current directory.
 
-If `packages` is `nothing` and `read` is `true`, then the list of packages will be read from the existing environment specified
-by `name`. If the environment does not exist, an `ErrorException` is thrown. If `package` is a `Vector`, empty or not, and `read`
-is `true`, an `ErrorException` is thrown.
+If `packages` is `nothing`, then the list of packages will be read from the existing environment specified by `name`.
+If the environment does not exist, an `ErrorException` is thrown.
 
-If `packages` is `nothing` and `read` is `false`, then an empty list `Symbol[]` will be created.
+If `packages` is an empty iterable, then the package list will be initialized to `Symbol[]`.
 
 # Examples
 
 ```jldoctest
 julia> StackEnv("an_extra_env", [:Example]) # not-shared by default
-StackEnv("an_extra_env", [:Example], true)
-
-julia> StackEnv("an_extra_env", [:Example]; shared=false) # not shared
 StackEnv("an_extra_env", [:Example], false)
 
-julia> StackEnv("existing_env", shared=true, read=true)
+julia> StackEnv("an_extra_env", [:Example]; shared=true)
+StackEnv("an_extra_env", [:Example], true)
+
+julia> StackEnv("existing_env", shared=true)
 StackEnv("existing_env", [:Example, :OtherPackage], true)
 ```
 
@@ -129,7 +129,14 @@ struct StackEnv
             env_exists(env_dir_name; shared=shared) || throw(ErrorException(lazy"Unable to find environment \"$env_dir_name\" for reading."))
             packages = sort!(collect(keys(read_env(env_dir_name; shared=shared))))
         end
-        return new(env_dir_name, [Symbol(p) for p in packages], shared)
+        if packages isa StrOrSym
+            packages = [Symbol(packages)]
+        end
+        if Base.IteratorSize(packages) == Base.HasShape{0}()
+            throw(ErrorException(lazy"Expecting a name or iterator of names. Got \"$packages\""))
+        end
+        package_list = Symbol[Symbol(p) for p in packages]
+        return new(env_dir_name, package_list, shared)
     end
 end
 
@@ -525,7 +532,7 @@ end
 """
     read_env(env::StackEnv)
 
-Call `read_env(env.name; all=false)`.
+Call `read_env(env.name; shared=env.shared, all=false)`.
 """
 read_env(env::StackEnv) = read_env(env.name; shared=env.shared)
 

@@ -1,7 +1,7 @@
 name = "StackEnvs"
 uuid = "6dbe6948-1a74-428b-a0c7-b6033448b207"
 authors = ["John Lapeyre <jlapeyre@users.noreply.github.com> and contributors"]
-version = "0.3.0"
+version = "0.4.0"
 
 [deps]
 Pkg = "44cfe95a-1eb2-52ea-b672-e2afdf69b78f"
