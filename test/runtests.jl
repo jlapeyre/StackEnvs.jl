@@ -20,22 +20,23 @@ end
 
     env_name = "stackenv" * string(rand(UInt), base=16)
     packages = [:Example]
-    env = StackEnv(env_name, packages)
+    env = StackEnv(env_name, packages; shared=true)
     @test StackEnvs._at_name(env) == "@" * env_name
     @test StackEnvs._no_at_name(env) == env_name
 
-    @test !env_exists(env_name)
+    @test !env_exists(env_name; shared=true)
     @test !env_exists(env)
-    @test !env_in_stack(env_name)
+    @test !env_in_stack(env_name; shared=true)
     @test !env_in_stack(env)
 
     # There are two equivalent methods for ensure_in_stack
-    for func in (() -> ensure_in_stack(env), () -> ensure_in_stack(env_name, packages))
+    for func in (() -> ensure_in_stack(env), () -> ensure_in_stack(env_name, packages; shared=true))
         try
             env = func()
-            @test env_exists(env_name)
+            @info env
+            @test env_exists(env_name; shared=true)
             @test env_exists(env)
-            @test env_in_stack(env_name)
+            @test env_in_stack(env_name; shared=true)
             @test env_in_stack(env)
 
             proj_file_content = read_env(env)
@@ -57,7 +58,7 @@ end
             update_env(env)
             @test env_exists(env)
             @test env_in_stack(env)
-            update_env(env.name, env.packages)
+            update_env(env.name, env.packages; shared=true)
             @test env_exists(env)
             @test env_in_stack(env)
 
@@ -67,15 +68,14 @@ end
             remove_from_filesystem(env_name)
         end
 
-        @test !env_exists(env_name)
+        @test !env_exists(env_name; shared=true)
         @test !env_exists(env)
-        @test env_in_stack(env_name)
+        @test env_in_stack(env_name; shared=true)
         @test env_in_stack(env)
 
         delete_from_stack!(env)
-        @test !env_in_stack(env_name)
+        @test !env_in_stack(env_name; shared=true)
         @test !env_in_stack(env)
-
 
         # Does not error if it is already gone
         delete_from_stack!(env)
@@ -83,8 +83,10 @@ end
 
     current_project = Base.active_project()
     try
+        @test env.shared === true
         ensure_in_stack(env)
         activate_env(env)
+        @test env.shared === true
         @test Base.active_project() == joinpath(Pkg.envdir(), env_name, "Project.toml")
     catch
         rethrow()
@@ -93,7 +95,7 @@ end
         remove_from_filesystem(env_name)
     end
 
-    env2 = StackEnv("newenv")
+    env2 = StackEnv("newenv", Symbol[]; shared=true)
     @test env2.name == "newenv"
     @test isempty(env2.packages)
 

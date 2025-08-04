@@ -120,25 +120,16 @@ struct StackEnv
     packages::Vector{Symbol}
     shared::Bool
 
-    function StackEnv(name::AbstractString, packages::Union{AbstractVector,Nothing}=nothing; shared::Bool=false, read::Bool=false)
-        if read && !isnothing(packages)
-            throw(ErrorException(lazy"If a list of packages is supplied, `read` must be false."))
-        end
-        name = _no_at_name(name)
-        if shared && (isabspath(expanduser(name)) || length(splitpath(name)) != 1)
-            throw(ArgumentError(lazy"A shared environment name must be a single word. Got \"$name\""))
+    function StackEnv(name::AbstractString, packages=nothing; shared::Bool=false)
+        env_dir_name = _no_at_name(name)
+        if shared && (isabspath(expanduser(env_dir_name)) || length(splitpath(env_dir_name)) != 1)
+            throw(ArgumentError(lazy"A shared environment name must be a single word. Got \"$env_dir_name\""))
         end
         if isnothing(packages)
-            if read
-                if !env_exists(name; shared=shared)
-                    throw(ErrorException(lazy"Argument `read` is `true`, but unable to find environment \"$name\" for reading."))
-                end
-                packages = sort!(collect(keys(read_env(name; shared=shared))))
-            else
-                packages = Symbol[]
-            end
+            env_exists(env_dir_name; shared=shared) || throw(ErrorException(lazy"Unable to find environment \"$env_dir_name\" for reading."))
+            packages = sort!(collect(keys(read_env(env_dir_name; shared=shared))))
         end
-        return new(name, [Symbol(p) for p in packages], shared)
+        return new(env_dir_name, [Symbol(p) for p in packages], shared)
     end
 end
 
@@ -159,32 +150,36 @@ function _no_at_name(name::StrOrSym)::String
     return string(sname)
 end
 
+# Careful. Even if shared=true, the dir name has no @at.
+# You can't rely on these two for everything.
 _at_name(env::StackEnv)::String = _at_name(env.name)
 _no_at_name(env::StackEnv)::String = _no_at_name(env.name)
+
+function _get_at_name(name::StrOrSym, shared::Bool)::String
+    shared ? _at_name(name) : _no_at_name(name)
+end
 
 function add_packages!(env::StackEnv, packages::StrOrSym...)
     push!(env.packages, map(Symbol, packages))
 end
 
 """
-    ensure_in_stack(env_name::AbstractString, env_packages::AbstractVector=nothing; shared::Bool=false, read=false)::StackEnv
+    ensure_in_stack(env_name::AbstractString, env_packages::AbstractVector=nothing; shared::Bool=false)::StackEnv
 
 Create `env = StackEnv(env_name, env_packages; shared=shared)`, run `ensure_in_stack(env)` and return `env`.
 
 Elements of `env_packages` should be `AbstractString`s or `Symbol`s.
-
-See [`StackEnv`](@ref) for documentation, including on the keyword argument `read`.
 
 # Examples
 ```julia-repl
 julia> ensure_in_stack("my_extra_env", [:PackageA, :PackageB]; shared=false); # or shared = true
 ```
 """
-function ensure_in_stack(env_name::AbstractString, env_packages::Union{AbstractVector{<:StrOrSym}, Nothing}=nothing; shared::Bool=false, read=false)
+function ensure_in_stack(env_name::AbstractString, env_packages=nothing; shared::Bool=false)
     if isnothing(env_packages)
-        env = StackEnv(env_name; shared=shared, read=read)
+        env = StackEnv(env_name; shared=shared)
     else
-        env = StackEnv(env_name, [Symbol(p) for p in env_packages]; shared=shared, read=read)
+        env = StackEnv(env_name, [Symbol(p) for p in env_packages]; shared=shared)
     end
     ensure_in_stack(env)
     return env
@@ -218,7 +213,6 @@ See [`StackEnv`](@ref).
 """
 function ensure_in_stack(env::StackEnv)::StackEnv
     env_exists(env) || create_env(env)
-#    atenv = _at_name(env) # This must already be the case!
     add_missing(env)
     maybepushenv!(env)
     return env
@@ -249,9 +243,9 @@ If `env` is already in `LOAD_PATH`, do nothing and return `false`.
 The character `'@'` will be prepended to or removed as needed depending the keyword argument `shared`.
 """
 function maybepushenv!(env_name::AbstractString; shared::Bool=false)
-    env_name = shared ? _at_name(env_name) : _no_at_name(env_name)
-    in(env_name, LOAD_PATH) && return false
-    push!(LOAD_PATH, env_name)
+    name = _get_at_name(env_name, shared)
+    in(name, LOAD_PATH) && return false
+    push!(LOAD_PATH, name)
     return true
 end
 
@@ -264,7 +258,7 @@ The character `'@'` will be prepended to or removed as needed depending the keyw
 The stack is `Base.LOAD_PATH`.
 """
 function env_in_stack(env_name::AbstractString; shared::Bool=false)::Bool
-    name = shared ? _at_name(env_name) : _no_at_name(env_name)
+    name = _get_at_name(env_name, shared)
     return name in Base.LOAD_PATH
 end
 
@@ -324,9 +318,9 @@ This environment might be activated via `Pkg.activate(env_name)`
 If done from the `pkg` repl, the name must start with `'@'`.
 """
 function env_exists(env_name::AbstractString; shared::Bool=false)::Bool
-    name = _no_at_name(env_name)
-    shared && return name in list_envs(;all=true)
-    isdir(get_env_dir_path(name, shared))
+    env_dir_name = _no_at_name(env_name) # Never have @ on the dir name
+    shared && return env_dir_name in list_envs(;all=true)
+    isdir(get_env_dir_path(env_dir_name, shared))
 end
 
 # Accept only strings in `list` that match `regex`.
@@ -453,8 +447,8 @@ The character `'@'` will be prepended to or removed from `env_name` according to
 See [`StackEnv`](@ref).
 """
 function update_env(env_name::AbstractString, env_packages::AbstractVector; shared::Bool=false)
-    name = _no_at_name(env_name)
-    env = StackEnv(name, [Symbol(p) for p in env_packages]; shared=shared)
+    env_dir_name = _no_at_name(env_name)
+    env = StackEnv(env_dir_name, [Symbol(p) for p in env_packages]; shared=shared)
     update_env(env)
     return env
 end
@@ -467,7 +461,7 @@ Delete environment `env.name` if and wherever it occurs in the stack `Base.LOAD_
 See [`StackEnv`](@ref).
 """
 function delete_from_stack!(env::StackEnv)
-    name = env.shared ? _at_name(env.name) : _no_at_name(env.name)
+    name = _get_at_name(env.name, env.shared)
     return delete_from_stack!(name; shared=env.shared)
 end
 
@@ -481,7 +475,7 @@ The character `'@'` will be prepended to or removed from `env_name` according to
 See [`StackEnv`](@ref).
 """
 function delete_from_stack!(env_name::StrOrSym; shared::Bool=false)
-    name = shared ? _at_name(env_name) : _no_at_name(env_name)
+    name = _get_at_name(env_name, shared)
     stack = Base.LOAD_PATH
     inds = findall(==(name), stack)
     if !isnothing(inds) && !isempty(inds)
@@ -503,8 +497,8 @@ The character `'@'` will be prepended to or removed from `env_name` according to
 See [`StackEnv`](@ref), [`create_env`](@ref), [`ensure_in_stack`](@ref),
 [`env_exists`](@ref).
 """
-function activate_env(env::StackEnv; shared::Bool=false)
-    return activate_env(env.name; shared=shared)
+function activate_env(env::StackEnv)
+    return activate_env(env.name; shared=env.shared)
 end
 
 function activate_env(env_name::StrOrSym; shared::Bool=false)
@@ -522,8 +516,8 @@ By default, only the section `"deps"` is returned.
 If `all` is true the entire `Project.toml` is returned.
 """
 function read_env(env_name::StrOrSym; all=false, shared::Bool=false)
-    env_name = _no_at_name(string(env_name))
-    proj_file = joinpath(get_env_dir_path(env_name, shared), "Project.toml")
+    env_dir_name = _no_at_name(string(env_name))
+    proj_file = joinpath(get_env_dir_path(env_dir_name, shared), "Project.toml")
     parsed = TOML.parsefile(proj_file)
     return all ? parsed : parsed["deps"]
 end
