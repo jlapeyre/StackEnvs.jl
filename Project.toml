@@ -1,7 +1,7 @@
 name = "StackEnvs"
 uuid = "6dbe6948-1a74-428b-a0c7-b6033448b207"
-version = "0.6.0"
 authors = ["John Lapeyre <jlapeyre@users.noreply.github.com> and contributors"]
+version = "0.7.0"
 
 [deps]
 Pkg = "44cfe95a-1eb2-52ea-b672-e2afdf69b78f"
@@ -12,7 +12,7 @@ TOML = "fa267f1f-6049-4f14-aa54-33bafae1ed76"
 Aqua = ">= 0"
 JET = ">= 0"
 Pkg = ">= 0"
-PrecompileTools = "1.3.2"
+PrecompileTools = "1.2.1"
 TOML = "1.0.3"
 Test = ">= 0"
 julia = "1.8"
